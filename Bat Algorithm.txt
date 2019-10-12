@@ -1,0 +1,188 @@
+import numpy as np
+import math
+from random import gauss
+np.random.seed(100)
+class BatAlgorithm():
+
+    def __init__(self,dimension, n_bat, n_generation, r0, alpha, gamma,fmin, fmax, b_lowerBound, b_upperBound,function):
+        self.dimension = dimension
+        self.n_bat= n_bat
+        self.n_generation = n_generation
+        self.alpha = alpha
+        self.gamma = gamma
+        self.fmin = fmin
+        self.fmax =fmax
+        self.b_lowerBound = b_lowerBound
+        self.b_upperBound = b_upperBound
+        self.function = function
+        self.epsilon = 0.001
+        self.r0= r0
+        print("hello")
+
+        #initialization score loudness A and pulse rate r
+        self.A = [0.95 for i in range(self.n_bat)]
+        self.r = [self.r0 for i in range(self.n_bat)]
+
+
+        #upperBound and lowerBound initialization per bat
+        self.upbound = [[0.0 for i in range(self.dimension) ] for j in range(self.n_bat)]
+        self.lowbound = [[0.0 for i in range(self.dimension)] for j in range(self.n_bat)]
+
+
+        # initialize frequency for all bat
+        self.frequency = [0.0] * n_bat
+
+        # initialization velocity for all bat
+        self.v = [[0.0 for i in range(self.dimension)] for j in range(self.n_bat)]
+
+        # initialization score x (location/solution) for all bat
+        self.x = [[0.0 for i in range(self.dimension)] for j in range(self.n_bat)]
+
+        # initialize fitness score for all bats
+        self.score_fitness = [0.0] * n_bat
+        self.score_fitness_minimum = 0.0
+
+        # best solution initialization
+        self.best = [0.0] * dimension
+        print("hello python")
+    def process_init(self):
+        #set all upperbound and lowerbound with preset parameters
+        for i in range(self.n_bat):
+            for j in range(self.dimension):
+                self.lowbound[i][j]=self.b_lowerBound
+                self.upbound[i][j] = self.b_upperBound
+        #generate new solution from upperbound and lowerbound and set all frequency  to 0
+        #bat is not looking for target v=0
+
+        for i in range(self.n_bat):
+            self.frequency[i] = 0
+            for j in range(self.dimension):
+                random = np.random.uniform(0,1)
+                self.v[i][j]=0.0
+                self.x[i][j] = self.lowbound[i][j] +(self.upbound[i][j] - self.lowbound[i][j]) * random
+
+            self.score_fitness[i] = self.function(self.x[i])
+
+        # find the best with lowest fitness score
+        self.bat_best()
+
+
+    def bat_best(self):
+        i=0
+        j=0
+        #find the best fitness value and note the index on the variable j
+        for i in range(self.n_bat):
+            if self.score_fitness[i] < self.score_fitness[j]:
+                j=i
+        # save the value of each dimension in the best solution
+        for i in range (self.dimension):
+            self.best[i] = self.x[j][i]
+        #save the values of fitness from the best solution
+        self.score_fitness_minimum= self.score_fitness[j]
+        print("score fitness minimum ",self.score_fitness_minimum)
+
+
+    def normalization_bupperBound(self,score):
+        #if the value exceeds the upper limit than the set value become upper bound
+        if score > self.b_upperBound:
+            score = self.b_upperBound
+        # if the value is smaller than the lower limit then the set value to lower limit
+        if score < self.b_lowerBound:
+            score = self.b_lowerBound
+        return score
+
+
+    def start_bat(self):
+        # solution
+        solution = [[0.0 for i in range(self.dimension)] for j in range(self.n_bat)]
+        print("start bat")
+        self.process_init()
+
+        # iterations
+
+        for n in range(self.n_generation):
+
+            _mean = np.mean(self.A)
+
+            # iterations for total number of bats
+            for i in range(self.n_bat):
+                random = np.random.uniform(0,1)
+
+                # find the frequency of each bat by using ex.2 of bat algorithm
+                self.frequency[i]= self.fmin + (self.fmax  - self.fmin) * random
+                for j in range(self.dimension):
+                    # find the new v and x of each bat using eq.3 and 4 of the bat algorithm
+                    self.v[i][j] = self.v[i][j] + (self.x[i][j] - self.best[j] ) * self.frequency[i]
+                    solution[i][j] = self.x[i][j] + self.v[i][j]
+                    solution[i][j] = self.normalization_bupperBound(solution[i][j])
+                random = np.random.uniform(0,1)
+
+                #if the random score [0,1] is greater than the pulse rate score of the bat, then do a local search based on the best bat
+                if(random > self.r[i]):
+                    for j in range(self.dimension):
+                        random = np.random.uniform(-1.0,1.0)
+                        solution[i][j] = self.best[j] + random * _mean
+                        solution[i][j] = self.normalization_bupperBound(solution[i][j])
+                #calculate fitness score of the new solution
+                score_fitness = self.function(solution[i])
+
+                random= np.random.uniform(0,1)
+                if( random< self.A[i] and score_fitness < self.score_fitness[i]):
+                    self.score_fitness[i] = score_fitness
+                    for j in range(self.dimension):
+                        self.x[i][j] = solution[i][j]
+                if(self.score_fitness[i] < self.score_fitness_minimum):
+                    #replace the best solution
+                    self.score_fitness_minimum = self.function(solution[i])
+                    for j in range(self.dimension):
+                        self.best[j] = self.x[i][j]
+
+
+                    #update the loudness and pulse rate of each bat
+                    self.A[i] = self.A[i] * self.alpha
+                    self.r[i] = self.r0 * ( 1- math.exp(-1 * self.gamma * i))
+            #print("score fitness of generation :", n , self.score_fitness)
+            print("score fitness best", self.score_fitness_minimum)
+            #print("score best", self.best)
+        print(self.score_fitness_minimum)
+
+
+
+def function(d):
+    sum = 0
+    for i in range(len(d)):
+        sum = sum + (d[i]* d[i])
+    return sum
+
+def function3(d):
+    sum = 0
+    sum1 = 0
+    for i in range(len(d)):
+        for j in range(len(d)):
+            sum = sum + d[i]
+        sum1 = sum1 + (sum * sum)
+
+    return sum1
+
+def function2(d):
+    product = 1
+    sum = 0
+    for i in range(len(d)):
+        sum = sum + abs(d[i])
+    for i in range(len(d)):
+        product = product * (abs(d[i]))
+    total_sum = sum + product
+    return total_sum
+def function4(d):
+    return max(d)
+
+def function5(d):
+    sum =0
+    for i in range(len(d)):
+        sum = sum + (100 * ((d[i+1]- (d[i]*d[i])) * (d[i+1]- (d[i]*d[i])))+ ((d[i]-1) * (d[i]-1)))
+
+
+ba = BatAlgorithm(50,40,5000,0.1,0.95,0.95,0,1,-5.12,5.12,function)
+for i in range(0,30):
+    ba.start_bat()
+
